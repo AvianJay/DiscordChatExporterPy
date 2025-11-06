@@ -71,11 +71,17 @@ class TranscriptDAO:
         return self
 
     async def export_transcript(self, message_html: str, meta_data: str):
-        guild_icon = self.channel.guild.icon if (
-                self.channel.guild.icon and len(self.channel.guild.icon) > 2
-        ) else DiscordUtils.default_avatar
+        if self.channel.guild:
+            guild_icon = self.channel.guild.icon if (
+                    self.channel.guild.icon and len(self.channel.guild.icon) > 2
+            ) else DiscordUtils.default_avatar
+        else:
+            guild_icon = DiscordUtils.default_avatar
 
-        guild_name = html.escape(self.channel.guild.name)
+        if self.channel.guild:
+            guild_name = html.escape(self.channel.guild.name)
+        else:
+            guild_name = "Unknown Guild"
 
         timezone = pytz.timezone(self.pytz_timezone)
         if self.military_time:
@@ -129,9 +135,12 @@ class TranscriptDAO:
         if self.limit:
             limit = f"latest {self.limit} messages"
 
+        channel_name = self.channel.name if isinstance(self.channel, discord.TextChannel) else "Unknown Channel"
+        guild_id = self.channel.guild.id if self.channel.guild else 0
+
         subject = await fill_out(self.channel.guild, channel_subject, [
             ("LIMIT", limit, PARSE_MODE_NONE),
-            ("CHANNEL_NAME", self.channel.name),
+            ("CHANNEL_NAME", channel_name),
             ("RAW_CHANNEL_TOPIC", str(raw_channel_topic))
         ])
 
@@ -156,9 +165,9 @@ class TranscriptDAO:
 
         self.html = await fill_out(self.channel.guild, total, [
             ("SERVER_NAME", f"{guild_name}"),
-            ("GUILD_ID", str(self.channel.guild.id), PARSE_MODE_NONE),
+            ("GUILD_ID", str(guild_id), PARSE_MODE_NONE),
             ("SERVER_AVATAR_URL", str(guild_icon), PARSE_MODE_NONE),
-            ("CHANNEL_NAME", f"{self.channel.name}"),
+            ("CHANNEL_NAME", f"{channel_name}"),
             ("MESSAGE_COUNT", str(len(self.messages))),
             ("MESSAGES", message_html, PARSE_MODE_NONE),
             ("META_DATA", meta_data_html, PARSE_MODE_NONE),
@@ -171,7 +180,7 @@ class TranscriptDAO:
             ("FANCY_TIME", _fancy_time, PARSE_MODE_NONE),
             ("SD", sd, PARSE_MODE_NONE),
             ("SERVER_NAME_SAFE", f"{guild_name}", PARSE_MODE_HTML_SAFE),
-            ("CHANNEL_NAME_SAFE", f"{html.escape(self.channel.name)}", PARSE_MODE_HTML_SAFE),
+            ("CHANNEL_NAME_SAFE", f"{html.escape(channel_name)}", PARSE_MODE_HTML_SAFE),
         ])
 
 

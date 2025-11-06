@@ -121,7 +121,10 @@ class ParseMention:
             match = re.search(regex, self.content)
             while match is not None:
                 role_id = int(match.group(1))
-                role = self.guild.get_role(role_id)
+                if self.guild:
+                    role = self.guild.get_role(role_id)
+                else:
+                    role = None
 
                 if role is None:
                     replacement = '@deleted-role'

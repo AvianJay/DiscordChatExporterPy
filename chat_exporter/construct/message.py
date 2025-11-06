@@ -415,7 +415,10 @@ class MessageConstruct:
 
     @cache()
     async def _gather_member(self, author: discord.Member):
-        member = self.guild.get_member(author.id)
+        if self.guild:
+            member = self.guild.get_member(author.id)
+        else:
+            member = self.message.author
 
         if member:
             return member
