@@ -131,9 +131,9 @@ class TranscriptDAO:
                 ("CHANNEL_TOPIC", html.escape(raw_channel_topic))
             ])
 
-        limit = "start"
+        limit = "開始"
         if self.limit:
-            limit = f"latest {self.limit} messages"
+            limit = f"最近 {self.limit} 則訊息"
 
         channel_name = self.channel.name if isinstance(self.channel, discord.TextChannel) else "Unknown Channel"
         guild_id = self.channel.guild.id if self.channel.guild else 0
@@ -146,7 +146,7 @@ class TranscriptDAO:
 
         sd = (
             '<div class="meta__support">'
-            '    <a href="https://ko-fi.com/mahtoid">DONATE</a>'
+            '    <a href="https://ko-fi.com/mahtoid">贊助</a>'
             '</div>'
         ) if self.support_dev else ""
 

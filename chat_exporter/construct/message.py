@@ -256,10 +256,10 @@ class MessageConstruct:
         interaction_status = get_interaction_status(message)
         if not interaction_status and (message.embeds or message.attachments):
             icon = DiscordUtils.reference_attachment_icon
-            dummy = "Click to see attachment"
+            dummy = "點擊查看附件"
         elif interaction_status:
             icon = DiscordUtils.interaction_command_icon
-            dummy = "Click to see command"
+            dummy = "點擊查看指令"
 
         if not message.content:
             message.content = dummy
@@ -288,7 +288,7 @@ class MessageConstruct:
             if not self.message.interaction_metadata:
                 self.interaction = ""
                 return
-            command = "a slash command"
+            command = "一個斜線指令"
             user = self.message.interaction_metadata.user
             interaction_id = self.message.interaction_metadata.id
         elif self.message.interaction:
@@ -310,7 +310,7 @@ class MessageConstruct:
             ("NAME", str(html.escape(user.display_name))),
             ("COMMAND", str(command), PARSE_MODE_NONE),
             ("USER_COLOUR", user_colour, PARSE_MODE_NONE),
-            ("FILLER", "used ", PARSE_MODE_NONE),
+            ("FILLER", "使用了 ", PARSE_MODE_NONE),
             ("USER_ID", str(user.id), PARSE_MODE_NONE),
             ("INTERACTION_ID", str(interaction_id), PARSE_MODE_NONE),
         ])

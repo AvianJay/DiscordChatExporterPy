@@ -21,6 +21,6 @@ for(var i = 0; i < timeStamps.length; i++) {
     } else if (date_1.add(1, 'day').isToday()) {
         timeStamps[i].innerText = "昨天 " + date_1.format('{{TIME_FORMAT}}')
     } else if (date_1.isBetween(date_2, date_2.subtract(7, 'day'))) {
-        timeStamps[i].innerText = date_1.day(date_1.day()).format("dddd [at] {{TIME_FORMAT}}")
+        timeStamps[i].innerText = date_1.day(date_1.day()).format("dddd [，] {{TIME_FORMAT}}")
     }
 }
