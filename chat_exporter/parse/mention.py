@@ -1,12 +1,14 @@
+import datetime
+import html
 import re
+import time
 from typing import Optional
 
 import pytz
-import datetime
-import time
 
 from chat_exporter.ext.discord_import import discord
 from chat_exporter.parse.markdown import ParseMarkdown
+
 bot: Optional[discord.Client] = None
 
 
@@ -68,25 +70,49 @@ class ParseMention:
 
 
     async def escape_mentions(self):
-        for match in re.finditer("(%s|%s|%s|%s|%s|%s|%s|%s)"
-                                 % (self.REGEX_ROLES, self.REGEX_MEMBERS, self.REGEX_CHANNELS, self.REGEX_EMOJIS,
-                                    self.REGEX_ROLES_2, self.REGEX_MEMBERS_2, self.REGEX_CHANNELS_2,
-                                    self.REGEX_EMOJIS_2), self.content):
-            pre_content = self.content[:match.start()]
-            post_content = self.content[match.end():]
-            match_content = self.content[match.start():match.end()]
+        mention_patterns = (
+            self.REGEX_ROLES,
+            self.REGEX_MEMBERS,
+            self.REGEX_CHANNELS,
+            self.REGEX_EMOJIS,
+            self.REGEX_ROLES_2,
+            self.REGEX_MEMBERS_2,
+            self.REGEX_CHANNELS_2,
+            self.REGEX_EMOJIS_2,
+        )
+        pattern = re.compile(f"({'|'.join(mention_patterns)})")
 
-            match_content = match_content.replace("<", self.ESCAPE_LT)
-            match_content = match_content.replace(">", self.ESCAPE_GT)
-            match_content = match_content.replace("&", self.ESCAPE_AMP)
+        # Escape only the token itself. Rebuilding the string from offsets
+        # while mutating self.content can duplicate or drop text.
+        self.content = pattern.sub(
+            lambda match: match.group(0)
+            .replace("<", self.ESCAPE_LT)
+            .replace(">", self.ESCAPE_GT)
+            .replace("&", self.ESCAPE_AMP),
+            self.content,
+        )
 
-            self.content = pre_content + match_content + post_content
+    async def unescape_mentions(self, content: Optional[str] = None):
+        had_content = content is not None
+        if content is None:
+            content = self.content
+        content = content.replace(self.ESCAPE_LT, "<")
+        content = content.replace(self.ESCAPE_GT, ">")
+        content = content.replace(self.ESCAPE_AMP, "&")
+        if not had_content:
+            self.content = content
+        return content
 
-    async def unescape_mentions(self):
-        self.content = self.content.replace(self.ESCAPE_LT, "<")
-        self.content = self.content.replace(self.ESCAPE_GT, ">")
-        self.content = self.content.replace(self.ESCAPE_AMP, "&")
-        pass
+    async def escape_mention_starters(self, content: Optional[str] = None):
+        had_content = content is not None
+        if content is None:
+            content = self.content
+        content = content.replace("<", self.ESCAPE_LT)
+        content = content.replace(">", self.ESCAPE_GT)
+        content = content.replace("&", self.ESCAPE_AMP)
+        if not had_content:
+            self.content = content
+        return content
 
     async def channel_mention(self):
         holder = self.REGEX_CHANNELS, self.REGEX_CHANNELS_2
@@ -152,34 +178,41 @@ class ParseMention:
     async def member_mention(self):
         holder = self.REGEX_MEMBERS, self.REGEX_MEMBERS_2
         for regex in holder:
-            match = re.search(regex, self.content)
-            while match is not None:
+            def replace_member(match):
                 member_id = int(match.group(1))
 
                 member = None
-                try:
-                    member = self.guild.get_member(member_id) or bot.get_user(member_id)
-                    member_name = member.display_name
-                except AttributeError:
-                    member_name = member
+                if self.guild is not None:
+                    try:
+                        member = self.guild.get_member(member_id)
+                    except AttributeError:
+                        member = None
+
+                if member is None and bot is not None:
+                    try:
+                        member = bot.get_user(member_id)
+                    except AttributeError:
+                        member = None
 
                 if member is not None:
-                    replacement = '<span class="mention" title="%s">@%s</span>' \
-                                  % (str(member_id), str(member_name))
-                else:
-                    replacement = '<span class="mention" title="%s">&lt;@%s></span>' \
-                                  % (str(member_id), str(member_id))
-                self.content = self.content.replace(self.content[match.start():match.end()],
-                                                    replacement)
+                    member_name = getattr(member, "display_name", None) or getattr(
+                        member, "name", str(member_id)
+                    )
+                    # Escape display names before inserting them into the
+                    # generated HTML. Escaped custom emoji syntax is still
+                    # recognized by ParseMarkdown, while mention-like names
+                    # cannot be matched again or inject markup.
+                    member_name = html.escape(str(member_name), quote=True)
+                    return f'<span class="mention" title="{member_id}">@{member_name}</span>'
 
-                match = re.search(regex, self.content)
+                return f'<span class="mention" title="{member_id}">&lt;@{member_id}></span>'
+
+            self.content = re.sub(regex, replace_member, self.content)
+
+        await self.unescape_mentions()
 
     async def time_mention(self):
         holder = self.REGEX_TIME_HOLDER
-        timezone = pytz.timezone("UTC")
-
-        if hasattr(self.guild, "timezone"):
-            timezone = pytz.timezone(self.guild.timezone)
 
         for p in holder:
             regex, strf = p
@@ -207,11 +240,6 @@ class ParseMention:
                     ui_time = ui_time.replace(str(dt.year), str(final_year))
                     tooltip_time = dt.strftime("%A, %e %B %Y at %H:%M")
                     tooltip_time = tooltip_time.replace(str(dt.year), str(final_year))
-                datetime_stamp = datetime.datetime(2010, *time_stamp[1:6], tzinfo=pytz.utc)
-                ui_time = datetime_stamp.strftime(strf)
-                ui_time = ui_time.replace(str(datetime_stamp.year), str(time_stamp[0]))
-                tooltip_time = datetime_stamp.strftime("%A, %e %B %Y at %H:%M")
-                tooltip_time = tooltip_time.replace(str(datetime_stamp.year), str(time_stamp[0]))
                 original = match.group().replace("&lt;", "<").replace("&gt;", ">")
                 replacement = (
                     f'<span class="unix-timestamp" data-timestamp="{tooltip_time}" raw-content="{original}">'
